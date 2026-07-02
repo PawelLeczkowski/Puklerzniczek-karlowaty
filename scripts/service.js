@@ -190,7 +190,8 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
 })
 
 chrome.runtime.onMessage.addListener((message) => {
-    if (message.action === "clearTabs") {
-        allTabs.clear();
+    if (message.action === "open") {
+        let extenionUrl = chrome.runtime.getURL("index.html");
+        chrome.tabs.create({url: extenionUrl});
     }
 });

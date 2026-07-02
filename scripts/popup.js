@@ -1,5 +1,5 @@
-document.getElementById("clearButton").addEventListener("click", () => {
+document.getElementById("open").addEventListener("click", () => {
     chrome.runtime.sendMessage({
-        action: "clearTabs"
+        action: "open"
     });
 });
