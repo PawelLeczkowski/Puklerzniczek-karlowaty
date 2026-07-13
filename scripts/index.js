@@ -1,18 +1,43 @@
+class Div {
+    constructor(element, kids) {
+        this.element = element;
+        this.kids = kids;
+    }
+}
+
+// ===================================================================================================
+
 const main = document.getElementsByTagName("main")[0];
 
 // todo listen for changes
 const { all: tabs} = await chrome.storage.local.get('all');
 console.log("onstorage", tabs);
 
+let divs = []
+
 // first level
 // todo find and implement tree drawing algorithm
 for (const tab of tabs) {
     const head = CreateNode(tab.title, tab.url, tab.tabId);
+
+    const parentDiv = new Div(head, [])
+    divs.push(parentDiv);
+
     if (tab.tabs.length > 0) {
         // all next levels
-        CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, head);
+        CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, head, parentDiv);
     }
 }
+
+addEventListener("resize", () => {
+    redrawAllLines()
+})
+
+addEventListener("scroll", () => {
+    redrawAllLines()
+})
+
+// ===================================================================================================
 
 function CreateNode(title, url, tabId) {
     const node = document.createElement("div");
@@ -60,6 +85,8 @@ function CreateNode(title, url, tabId) {
         // set the element's new position:
         node.style.top = (node.offsetTop - pos2) + "px";
         node.style.left = (node.offsetLeft - pos1) + "px";
+
+        redrawAllLines();
     }
 
     function closeDragElement() {
@@ -69,16 +96,17 @@ function CreateNode(title, url, tabId) {
     }
 }
 
-function CreateNodeRecursive(title, url, tabId, tabs, parent)
-{
+function CreateNodeRecursive(title, url, tabId, tabs, parent, parentDiv) {
     for (const tab of tabs) {
-        // todo add lines between parents and kids
         const kid = CreateNode(tab.title, tab.url, tab.tabId);
 
         drawLine(parent, kid)
 
+        const kidDiv = new Div(kid, [])
+        parentDiv.kids.push(kidDiv)
+
         if (tab.tabs.length > 0) {
-            CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, kid);
+            CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, kid, kidDiv);
         }
     }
 }
@@ -104,4 +132,24 @@ function drawLine(parent, kid) {
     line.setAttribute('y1', y1);
     line.setAttribute('x2', x2);
     line.setAttribute('y2', y2);
+}
+
+function redrawAllLines() {
+    const svg = document.getElementById('line-container');
+
+    svg.innerHTML = '';
+
+    for (const div of divs) {
+        for (const kid of div.kids) {
+            drawLine(div.element, kid.element);
+            iterate(kid)
+        }
+    }
+
+    function iterate(div) {
+        for (const kid of div.kids) {
+            drawLine(div.element, kid.element);
+            iterate(kid)
+        }
+    }
 }
