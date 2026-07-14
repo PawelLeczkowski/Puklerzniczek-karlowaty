@@ -54,7 +54,7 @@ addEventListener("scroll", () => {
 
 // ===================================================================================================
 
-function CreateNode(title, url, tabId, existingId = null, savedTop = 0, savedLeft = 0) {
+function CreateNode(title, url, tabId, existingId = null, savedTop = 0, savedLeft = 0, savedKids = []) {
     const node = document.createElement("div");
     node.id = existingId || (new Date().getTime() + Math.floor(Math.random() * 10000000000000000)).toString();
     node.className = "node";
@@ -79,7 +79,7 @@ function CreateNode(title, url, tabId, existingId = null, savedTop = 0, savedLef
 
     main.appendChild(node);
 
-    return new Div(node.id, title, url, tabId, 0, 0, []);
+    return new Div(node.id, title, url, tabId, savedTop, savedLeft, savedKids);
 
     function dragMouseDown(e) {
         e = e || window.event;
@@ -209,6 +209,31 @@ function RenderSavedNodesRecursive(currentDivs) {
     }
 }
 
-function CompareTreesAndAddMissingElements() {
+function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs) {
+    let max = Math.max(divs.length, tabs.length)
+    for (let i = 0; i < max; i++) {
+        let div = divsBranch[i];
+        let tab = tabsBranch[i];
 
+        if (div === undefined) { // tab added
+            CreateNewBranch(div, tab);
+        } else if (tab === undefined) { // tab removed
+            DestroyBranch(div, tab);
+        } else if (div.tabId !== tab.tabId) { // tab updated
+            DestroyBranch(div, tab);
+            CreateNewBranch(div, tab);
+        }
+    }
+}
+
+function CreateNewBranch(divsBranch, tabsBranch) {
+    for (const tab of tabsBranch) {
+        let div = new Div(tab.id, ta.title, tab.url, tab.tabId, 0, 0);
+        divsBranch.push(div);
+        CreateNewBranch(div.kids, tab.tabs);
+    }
+}
+
+function DestroyBranch(divsBranch, tabsBranch) {
+    divsBranch.clear();
 }
