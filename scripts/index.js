@@ -13,34 +13,38 @@ class Div {
 // ===================================================================================================
 
 const main = document.getElementsByTagName("main")[0];
-
 let divs = window.localStorage.getItem("divs");
 const { all: tabs } = await chrome.storage.local.get('all');
 
-// todo find and implement tree drawing algorithm
-if (divs) {
-    divs = JSON.parse(divs);
-    RenderSavedNodesRecursive(divs);
-
-    CompareTreesAndAddMissingElements();
-
-    RedrawAllLines();
-} else {
-    divs = [];
-    // todo listen for changes
+setInterval(async () => {
+    let divs = window.localStorage.getItem("divs");
     const { all: tabs } = await chrome.storage.local.get('all');
-    console.log("onstorage", tabs);
 
-    for (const tab of tabs) {
-        let head = CreateNode(tab.title, tab.url, tab.tabId);
-        divs.push(head);
+    // todo find and implement tree drawing algorithm
+    if (divs) {
+        divs = JSON.parse(divs);
+        RenderSavedNodesRecursive(divs);
 
-        if (tab.tabs && tab.tabs.length > 0) {
-            CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, head);
+        CompareTreesAndAddMissingElements();
+
+        RedrawAllLines();
+    } else {
+        divs = [];
+        // todo listen for changes
+        const { all: tabs } = await chrome.storage.local.get('all');
+        console.log("onstorage", tabs);
+
+        for (const tab of tabs) {
+            let head = CreateNode(tab.title, tab.url, tab.tabId);
+            divs.push(head);
+
+            if (tab.tabs && tab.tabs.length > 0) {
+                CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, head);
+            }
         }
+        window.localStorage.setItem('divs', JSON.stringify(divs));
     }
-    window.localStorage.setItem('divs', JSON.stringify(divs));
-}
+}, 500);
 
 addEventListener("resize", () => {
     RedrawAllLines()
