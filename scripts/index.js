@@ -22,9 +22,7 @@ if (divs) {
     divs = JSON.parse(divs);
     RenderSavedNodesRecursive(divs);
 
-    // todo check if two trees are equal if no add missing elements
     CompareTreesAndAddMissingElements();
-
 
     RedrawAllLines();
 } else {
@@ -201,7 +199,7 @@ function RedrawAllLines() {
 
 function RenderSavedNodesRecursive(currentDivs) {
     for (const div of currentDivs) {
-        CreateNode(div.title, div.url, div.tabId, div.divId, div.top, div.left);
+        CreateNode(div.title, div.url, div.tabId, div.divId, div.top, div.left, div.kids);
 
         if (div.kids && div.kids.length > 0) {
             RenderSavedNodesRecursive(div.kids);
@@ -210,30 +208,62 @@ function RenderSavedNodesRecursive(currentDivs) {
 }
 
 function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs) {
-    let max = Math.max(divs.length, tabs.length)
-    for (let i = 0; i < max; i++) {
-        let div = divsBranch[i];
-        let tab = tabsBranch[i];
+    const divMap = new Map();
+    divsBranch.forEach(div => divMap.set(div.tabId, div));
 
-        if (div === undefined) { // tab added
-            CreateNewBranch(div, tab);
-        } else if (tab === undefined) { // tab removed
-            DestroyBranch(div, tab);
-        } else if (div.tabId !== tab.tabId) { // tab updated
-            DestroyBranch(div, tab);
-            CreateNewBranch(div, tab);
+    const tabMap = new Map();
+    tabsBranch.forEach(tab => tabMap.set(tab.tabId, tab));
+
+    for (let i = divsBranch.length - 1; i >= 0; i--) {
+        const currentDiv = divsBranch[i];
+        if (!tabMap.has(currentDiv.tabId)) {
+            DestroyBranch(currentDiv);
+            divsBranch.splice(i, 1);
         }
     }
+
+    tabsBranch.forEach((tab) => {
+        const existingDiv = divMap.get(tab.tabId);
+
+        if (existingDiv) {
+            if (existingDiv.title !== tab.title || existingDiv.url !== tab.url) {
+                existingDiv.title = tab.title;
+                existingDiv.url = tab.url;
+                const domEl = document.getElementById(existingDiv.divId);
+                if (domEl) {
+                    const p = domEl.querySelector('p');
+                    if (p) p.textContent = tab.title;
+                }
+            }
+            if (!existingDiv.kids) {
+                existingDiv.kids = [];
+            }
+            CompareTreesAndAddMissingElements(existingDiv.kids, tab.tabs || []);
+        } else {
+            CreateNewBranch(divsBranch, tab);
+        }
+    });
+
+    window.localStorage.setItem('divs', JSON.stringify(divs));
 }
 
-function CreateNewBranch(divsBranch, tabsBranch) {
-    for (const tab of tabsBranch) {
-        let div = new Div(tab.id, ta.title, tab.url, tab.tabId, 0, 0);
-        divsBranch.push(div);
-        CreateNewBranch(div.kids, tab.tabs);
+function CreateNewBranch(parentKidsArray, tab) {
+    let newDiv = CreateNode(tab.title, tab.url, tab.tabId, null, 100, 100, []);
+    parentKidsArray.push(newDiv);
+
+    if (tab.tabs && tab.tabs.length > 0) {
+        tab.tabs.forEach(kidTab => {
+            CreateNewBranch(newDiv.kids, kidTab);
+        });
     }
 }
 
-function DestroyBranch(divsBranch, tabsBranch) {
-    divsBranch.clear();
+function DestroyBranch(div) {
+    const domEl = document.getElementById(div.divId);
+    if (domEl) {
+        domEl.remove();
+    }
+    if (div.kids && div.kids.length > 0) {
+        div.kids.forEach(kid => DestroyBranch(kid));
+    }
 }
