@@ -14,37 +14,49 @@ class Div {
 
 const main = document.getElementsByTagName("main")[0];
 let divs = window.localStorage.getItem("divs");
-const { all: tabs } = await chrome.storage.local.get('all');
+let { all: tabs } = await chrome.storage.local.get('all');
 
-setInterval(async () => {
-    let divs = window.localStorage.getItem("divs");
+// todo find and implement tree drawing algorithm
+if (divs) {
+    divs = JSON.parse(divs);
+    RenderSavedNodesRecursive(divs);
+
+    CompareTreesAndAddMissingElements();
+
+    RedrawAllLines();
+} else {
+    divs = [];
     const { all: tabs } = await chrome.storage.local.get('all');
+    console.log("onstorage", tabs);
 
-    // todo find and implement tree drawing algorithm
-    if (divs) {
-        divs = JSON.parse(divs);
-        RenderSavedNodesRecursive(divs);
+    for (const tab of tabs) {
+        let head = CreateNode(tab.title, tab.url, tab.tabId);
+        divs.push(head);
 
-        CompareTreesAndAddMissingElements();
-
-        RedrawAllLines();
-    } else {
-        divs = [];
-        // todo listen for changes
-        const { all: tabs } = await chrome.storage.local.get('all');
-        console.log("onstorage", tabs);
-
-        for (const tab of tabs) {
-            let head = CreateNode(tab.title, tab.url, tab.tabId);
-            divs.push(head);
-
-            if (tab.tabs && tab.tabs.length > 0) {
-                CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, head);
-            }
+        if (tab.tabs && tab.tabs.length > 0) {
+            CreateNodeRecursive(tab.title, tab.url, tab.tabId, tab.tabs, head);
         }
-        window.localStorage.setItem('divs', JSON.stringify(divs));
     }
-}, 500);
+    window.localStorage.setItem('divs', JSON.stringify(divs));
+}
+
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+    if (areaName !== "local") {
+        return;
+    }
+
+    const { all: tabs } = await chrome.storage.local.get("all");
+
+    divs = JSON.parse(localStorage.getItem("divs"));
+
+    main.innerHTML = '<svg id="line-container"></svg>';
+
+    RenderSavedNodesRecursive(divs);
+
+    CompareTreesAndAddMissingElements(divs, tabs);
+
+    RedrawAllLines();
+});
 
 addEventListener("resize", () => {
     RedrawAllLines()
