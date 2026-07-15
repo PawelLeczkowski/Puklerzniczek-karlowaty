@@ -45,7 +45,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
         return;
     }
 
-    const { all: tabs } = await chrome.storage.local.get("all");
+    const tabs = changes.all.newValue;
 
     divs = JSON.parse(localStorage.getItem("divs"));
 
@@ -70,7 +70,7 @@ addEventListener("scroll", () => {
 
 function CreateNode(title, url, tabId, existingId = null, savedTop = 0, savedLeft = 0, savedKids = []) {
     const node = document.createElement("div");
-    node.id = existingId || (new Date().getTime() + Math.floor(Math.random() * 10000000000000000)).toString();
+    node.id = existingId || crypto.randomUUID();
     node.className = "node";
     node.style.top = savedTop + "px";
     node.style.left = savedLeft + "px";
@@ -170,7 +170,7 @@ function CreateNodeRecursive(title, url, tabId, tabs, parent) {
 }
 
 function DrawLine(parent, kid) {
-    const svg = document.getElementById('line-container');``
+    const svg = document.getElementById('line-container');
     parent = document.getElementById(parent.divId);
     kid = document.getElementById(kid.divId);
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -263,13 +263,17 @@ function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs)
     window.localStorage.setItem('divs', JSON.stringify(divs));
 }
 
-function CreateNewBranch(parentKidsArray, tab) {
+function CreateNewBranch(parentKidsArray, tab, parent = null) {
     let newDiv = CreateNode(tab.title, tab.url, tab.tabId, null, 100, 100, []);
     parentKidsArray.push(newDiv);
 
+    if (parent !== null) {
+        DrawLine(parent, newDiv);
+    }
+
     if (tab.tabs && tab.tabs.length > 0) {
         tab.tabs.forEach(kidTab => {
-            CreateNewBranch(newDiv.kids, kidTab);
+            CreateNewBranch(newDiv, newDiv.kids, kidTab);
         });
     }
 }
