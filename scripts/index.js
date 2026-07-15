@@ -16,7 +16,6 @@ const main = document.getElementsByTagName("main")[0];
 let divs = window.localStorage.getItem("divs");
 let { all: tabs } = await chrome.storage.local.get('all');
 
-// todo find and implement tree drawing algorithm
 if (divs) {
     divs = JSON.parse(divs);
     RenderSavedNodesRecursive(divs);
@@ -68,10 +67,15 @@ addEventListener("scroll", () => {
 
 // ===================================================================================================
 
-function CreateNode(title, url, tabId, existingId = null, savedTop = 0, savedLeft = 0, savedKids = []) {
+function CreateNode(title, url, tabId, parent = null, existingId = null, savedTop = null, savedLeft = null, savedKids = []) {
     const node = document.createElement("div");
     node.id = existingId || crypto.randomUUID();
     node.className = "node";
+
+    if (savedTop === null || savedLeft === null) {
+        ({ top: savedTop, left: savedLeft } = FindPosition(parent));
+    }
+
     node.style.top = savedTop + "px";
     node.style.left = savedLeft + "px";
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -156,7 +160,7 @@ function FindDiv(divId, currentDivs = divs) {
 
 function CreateNodeRecursive(title, url, tabId, tabs, parent) {
     for (const tab of tabs) {
-        const kid = CreateNode(tab.title, tab.url, tab.tabId);
+        const kid = CreateNode(tab.title, tab.url, tab.tabId, parent);
 
         DrawLine(parent, kid)
 
@@ -215,7 +219,7 @@ function RedrawAllLines() {
 
 function RenderSavedNodesRecursive(currentDivs) {
     for (const div of currentDivs) {
-        CreateNode(div.title, div.url, div.tabId, div.divId, div.top, div.left, div.kids);
+        CreateNode(div.title, div.url, div.tabId, null, div.divId, div.top, div.left, div.kids);
 
         if (div.kids && div.kids.length > 0) {
             RenderSavedNodesRecursive(div.kids);
@@ -223,7 +227,7 @@ function RenderSavedNodesRecursive(currentDivs) {
     }
 }
 
-function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs) {
+function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs, parent = null) {
     const divMap = new Map();
     divsBranch.forEach(div => divMap.set(div.tabId, div));
 
@@ -254,9 +258,9 @@ function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs)
             if (!existingDiv.kids) {
                 existingDiv.kids = [];
             }
-            CompareTreesAndAddMissingElements(existingDiv.kids, tab.tabs || []);
+            CompareTreesAndAddMissingElements(existingDiv.kids, tab.tabs || [], existingDiv);
         } else {
-            CreateNewBranch(divsBranch, tab);
+            CreateNewBranch(divsBranch, tab, parent);
         }
     });
 
@@ -264,7 +268,7 @@ function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs)
 }
 
 function CreateNewBranch(parentKidsArray, tab, parent = null) {
-    let newDiv = CreateNode(tab.title, tab.url, tab.tabId, null, 100, 100, []);
+    let newDiv = CreateNode(tab.title, tab.url, tab.tabId, parent);
     parentKidsArray.push(newDiv);
 
     if (parent !== null) {
@@ -273,9 +277,51 @@ function CreateNewBranch(parentKidsArray, tab, parent = null) {
 
     if (tab.tabs && tab.tabs.length > 0) {
         tab.tabs.forEach(kidTab => {
-            CreateNewBranch(newDiv, newDiv.kids, kidTab);
+            CreateNewBranch(newDiv.kids, kidTab, newDiv);
         });
     }
+}
+
+function FindPosition(parent) {
+    if (!parent) {
+        return {top: 100, left: 100};
+    }
+
+    const offset = 280;
+    const step = 130;
+
+    const left = parent.left + offset;
+
+    for (let i = 0; i < 100; i++) {
+        const direction = i % 2 === 0 ? 1 : -1;
+        const distance = Math.ceil(i / 2) * step;
+
+        const top = parent.top + direction * distance;
+
+        if (IsPositionFree(top, left)) {
+            return {top, left};
+        }
+    }
+
+    return {top: parent.top, left};
+}
+
+function IsPositionFree(top, left, width = 200, height = 100) {
+    const margin = 10;
+
+    const allNodes = document.getElementsByClassName('node')
+
+    for (const node of allNodes) {
+        const rect = node.getBoundingClientRect();
+
+        if (left < node.offsetLeft + rect.width + margin &&
+            left + width > node.offsetLeft - margin &&
+            top < node.offsetTop + rect.height + margin &&
+            top + height > node.offsetTop - margin) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function DestroyBranch(div) {
