@@ -228,6 +228,10 @@ function RenderSavedNodesRecursive(currentDivs) {
 }
 
 function CompareTreesAndAddMissingElements(divsBranch = divs, tabsBranch = tabs, parent = null) {
+    if (tabsBranch === undefined) {
+        return;
+    }
+
     const divMap = new Map();
     divsBranch.forEach(div => divMap.set(div.tabId, div));
 

@@ -3,7 +3,13 @@ class Tab {
         this.title = title;
         this.url = url;
         this.tabId = tabId;
-        this.tabs = []
+        this.tabs = [];
+    }
+
+    static fromObject(obj) {
+        const tab = new Tab(obj.title, obj.url, obj.tabId);
+        tab.tabs = (obj.tabs || []).map(Tab.fromObject);
+        return tab;
     }
 
     addTab(tab) {
@@ -16,27 +22,23 @@ class Tab {
         if (index !== -1) {
             const childTabs = this.tabs[index].tabs;
             this.tabs.splice(index, 1);
-            this.tabs = this.tabs.concat(childTabs);
+            this.tabs.push(...childTabs);
+            return;
         }
-        else {
-            for (let tab of this.tabs) {
-                tab.removeTab(tabId);
-            }
+
+        for (const tab of this.tabs) {
+            tab.removeTab(tabId);
         }
     }
 
     findTab(tabId) {
-        const index = this.tabs.findIndex(tab => tab.tabId === tabId)
+        if (this.tabId === tabId)
+            return this;
 
-        if (index !== -1) {
-            return this.tabs[index];
-        }
-
-        for (let tab of this.tabs) {
+        for (const tab of this.tabs) {
             const found = tab.findTab(tabId);
-            if (found !== undefined) {
+            if (found)
                 return found;
-            }
         }
 
         return undefined;
@@ -117,12 +119,47 @@ class Tabs {
             url: tab.url
         };
     }
+
+    async loadFromStorage() {
+        const result = await chrome.storage.local.get("all");
+
+        if (!result.all) {
+            this.tabs = [];
+            return;
+        }
+
+        this.tabs = result.all.map(Tab.fromObject);
+
+        if (fullDebug) {
+            console.log("Loaded", this.tabs);
+        }
+    }
 }
 
-allTabs = new Tabs();
+const allTabs = new Tabs();
+
+(async () => {
+    await allTabs.loadFromStorage();
+
+    if (fullDebug) {
+        console.log("Storage restored");
+    }
+})();
+
 const fullDebug = true;
 
+function shouldIgnoreTab(tab) {
+    const url = tab.pendingUrl || tab.url || "";
+
+    // ignore chrome special tabs
+    return (url.startsWith("chrome-extension://") || url.startsWith(chrome.runtime.getURL("")) || url.startsWith("chrome://"));
+}
+
 chrome.tabs.onCreated.addListener( async tab => {
+    if (shouldIgnoreTab(tab)) {
+        return;
+    }
+
     console.log("onCreated", tab)
 
     const url = tab.pendingUrl || tab.url || "";
@@ -141,8 +178,20 @@ chrome.tabs.onCreated.addListener( async tab => {
             parent.addTab(newTab);
         } else {
             // add parent
-            const parentInfo = await allTabs.getTabInfo(tab.openerTabId);
-            const newParent = new Tab(parentInfo.title, parentInfo.url, newTab.openerTabId);
+            let parentInfo;
+
+            try {
+                parentInfo = await allTabs.getTabInfo(tab.openerTabId);
+            }
+            catch (e) {
+                if (fullDebug){
+                    console.log("Parent tab not found:", tab.openerTabId);
+                }
+
+                allTabs.addTab(newTab);
+                return;
+            }
+            const newParent = new Tab(parentInfo.title, parentInfo.url, tab.openerTabId);
             allTabs.addTab(newParent);
 
             // add new tab to parent
@@ -154,6 +203,10 @@ chrome.tabs.onCreated.addListener( async tab => {
 })
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (shouldIgnoreTab(tab)) {
+        return;
+    }
+
     if (fullDebug) {
         console.log("update")
         console.log(tabId);
@@ -194,4 +247,22 @@ chrome.runtime.onMessage.addListener((message) => {
         let extenionUrl = chrome.runtime.getURL("index.html");
         chrome.tabs.create({url: extenionUrl});
     }
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+    await allTabs.loadFromStorage();
+
+    const openedTabs = await chrome.tabs.query({});
+
+    for (const tab of openedTabs) {
+        if (shouldIgnoreTab(tab)) {
+            return;
+        }
+
+        if (!allTabs.findTab(tab.id)) {
+            allTabs.addTab(new Tab(tab.title, tab.url, tab.id));
+        }
+    }
+
+    console.log("Startup sync finished");
 });
